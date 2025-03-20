@@ -63,12 +63,12 @@ def search_papers(query, fields=None, publication_types=None, open_access_pdf=Fa
 # Example usage
 if __name__ == "__main__":
     # Define your search query and parameters
-    query = "generative ai"
-    fields = "title,url,authors.name,citations.title"
+    query = "research software metadata"
+    fields = "title"
     publication_types = "Conference,JournalArticle"
     open_access_pdf = True
     min_citation_count = 100
-    year = "2015-2020"
+    year = "2020"
     
     # Perform the search
     papers = search_papers(
