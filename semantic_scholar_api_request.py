@@ -67,8 +67,8 @@ if __name__ == "__main__":
     fields = "title"
     publication_types = "Conference,JournalArticle"
     open_access_pdf = True
-    min_citation_count = 100
-    year = "2020"
+    min_citation_count = 10
+    year = "2009-2020"
     
     # Perform the search
     papers = search_papers(
@@ -79,11 +79,11 @@ if __name__ == "__main__":
         min_citation_count=min_citation_count,
         year=year
     )
-    
+
+
+    print(papers[0].keys())
     # Print the results
     for paper in papers:
+        print(f"Title: {paper.get('paperId')}")
         print(f"Title: {paper.get('title')}")
-        print(f"URL: {paper.get('url')}")
-        print(f"Authors: {[author.get('name') for author in paper.get('authors', [])]}")
-        print(f"Citations: {[citation.get('title') for citation in paper.get('citations', [])]}")
         print("-" * 40)
