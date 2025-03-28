@@ -2,7 +2,7 @@ import requests
 
 def search_papers(query, fields=None, publication_types=None, open_access_pdf=False,
                   min_citation_count=None, publication_date_or_year=None, year=None,
-                  venue=None, fields_of_study=None, offset=0, limit=100):
+                  venue=None, fields_of_study=None, offset=0, limit=None):
     # Base URL for the Semantic Scholar API
     base_url = "https://api.semanticscholar.org/graph/v1/paper/search"
     
@@ -77,7 +77,8 @@ if __name__ == "__main__":
         publication_types=publication_types,
         open_access_pdf=open_access_pdf,
         min_citation_count=min_citation_count,
-        year=year
+        year=year,
+        limit=9999
     )
 
 
