@@ -1,12 +1,11 @@
 import requests
 
-url = "https://api.openaire.eu/graph/v1/researchProducts"
+url = "https://api.openaire.eu/search/publications"
 params = {
-    "search": "research software metadata",
-    "type": "publication",
+    "title": "research software OR software citation OR metadata",
+    "size": 200,
     "page": 1,
-    "pageSize": 10,
-    "sortBy": "relevance DESC"
+    "format": "json"
 }
 headers = {
     "accept": "application/json"
