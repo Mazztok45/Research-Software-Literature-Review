@@ -1,90 +1,73 @@
+import json
 import requests
-
-def search_papers(query, fields=None, publication_types=None, open_access_pdf=False,
-                  min_citation_count=None, publication_date_or_year=None, year=None,
-                  venue=None, fields_of_study=None, offset=0, limit=None):
-    # Base URL for the Semantic Scholar API
-    base_url = "https://api.semanticscholar.org/graph/v1/paper/search"
-    
-    # Parameters for the API request
-    params = {
-        "query": query,
-        "offset": offset,
-        "limit": limit
-    }
-    
-    # Optional parameters
-    if fields:
-        params["fields"] = fields
-    if publication_types:
-        params["publicationTypes"] = publication_types
-    if open_access_pdf:
-        params["openAccessPdf"] = ""  # This parameter doesn't require a value
-    if min_citation_count:
-        params["minCitationCount"] = min_citation_count
-    if publication_date_or_year:
-        params["publicationDateOrYear"] = publication_date_or_year
-    if year:
-        params["year"] = year
-    if venue:
-        params["venue"] = venue
-    if fields_of_study:
-        params["fieldsOfStudy"] = fields_of_study
-    
-    # List to store all papers
-    all_papers = []
-    
-    while True:
-        # Make the API request
-        response = requests.get(base_url, params=params)
-        
-        # Check if the request was successful
-        if response.status_code != 200:
-            print(f"Error: {response.status_code}")
-            print(f"Response: {response.text}")  # Print the error message from the API
-            break
-        
-        # Parse the JSON response
-        data = response.json()
-        
-        # Add the papers to the list
-        all_papers.extend(data.get("data", []))
-        
-        # Check if there is a continuation token
-        continuation_token = data.get("token")
-        if not continuation_token:
-            break
-        
-        # Update the continuation token for the next request
-        params["token"] = continuation_token
-    
-    return all_papers
-
-# Example usage
-if __name__ == "__main__":
-    # Define your search query and parameters
-    query = "research software metadata"
-    fields = "title"
-    publication_types = "Conference,JournalArticle"
-    open_access_pdf = True
-    min_citation_count = 10
-    year = "2009-2020"
-    
-    # Perform the search
-    papers = search_papers(
-        query=query,
-        fields=fields,
-        publication_types=publication_types,
-        open_access_pdf=open_access_pdf,
-        min_citation_count=min_citation_count,
-        year=year,
-        limit=9999
-    )
+from pathlib import Path
+from time import sleep
 
 
-    print(papers[0].keys())
-    # Print the results
-    for paper in papers:
-        print(f"Title: {paper.get('paperId')}")
-        print(f"Title: {paper.get('title')}")
-        print("-" * 40)
+class SemanticScholarClient:
+    """Simple client for Semantic Scholar API"""
+
+    BASE_URL = "https://api.semanticscholar.org/graph/v1"
+
+    def __init__(self, delay=1.0):
+        self.delay = delay
+        self.session = requests.Session()
+
+    def search_papers(self, query, limit=10):
+        """Simple search for papers"""
+        params = {
+            "query": query,
+            "fields": "paperId,title,abstract,year,citationCount,externalIds,url",
+            "limit": limit
+        }
+
+        try:
+            response = self.session.get(f"{self.BASE_URL}/paper/search", params=params)
+            response.raise_for_status()
+            sleep(self.delay)
+            return response.json()
+        except Exception as e:
+            print(f"Error: {e}")
+            return {"data": []}
+
+
+# Initialize client
+client = SemanticScholarClient()
+
+# Simple search
+query = "research software metadata"
+print(f"Searching for: '{query}'")
+
+# Perform search
+result = client.search_papers(query, limit=20)
+papers = result.get("data", [])
+
+print(f"Found {len(papers)} papers:")
+print("-" * 50)
+
+# Display results
+for i, paper in enumerate(papers):
+    title = paper.get("title", "No title")
+    year = paper.get("year", "N/A")
+    citations = paper.get("citationCount", 0)
+
+    print(f"{i + 1}. {title} ({year})")
+    print(f"   Citations: {citations}")
+
+    # Get DOI from externalIds
+    external_ids = paper.get("externalIds", {})
+    doi = external_ids.get("DOI")
+    if doi:
+        print(f"   DOI: {doi}")
+
+    if paper.get("url"):
+        print(f"   URL: {paper.get('url')}")
+
+    print()
+
+# Save raw results to file
+output_file = "simple_search_results.json"
+with open(output_file, 'w', encoding='utf-8') as f:
+    json.dump(papers, f, indent=2, ensure_ascii=False)
+
+print(f"Results saved to {output_file}")
