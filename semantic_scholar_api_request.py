@@ -13,7 +13,7 @@ class SemanticScholarClient:
         self.delay = delay
         self.session = requests.Session()
 
-    def search_papers(self, query, limit=10):
+    def search_papers(self, query, limit=30):
         """Simple search for papers"""
         params = {
             "query": query,
@@ -35,39 +35,44 @@ class SemanticScholarClient:
 client = SemanticScholarClient()
 
 # Simple search
-query = "research software metadata"
-print(f"Searching for: '{query}'")
+queries = ["research software metadata"]
 
-# Perform search
-result = client.search_papers(query, limit=20)
-papers = result.get("data", [])
+for query in queries:
+    print(f"Searching for: '{query}'")
+    query_words = query.lower().split()
+    # Export path
+    filename = f"{query.replace(' ', '_')}.json"
+    path = Path("./semantic-scholar-data") / filename
+    # Perform search
+    result = client.search_papers(query, limit=20)
+    papers = result.get("data", [])
 
-print(f"Found {len(papers)} papers:")
-print("-" * 50)
+    print(f"Found {len(papers)} papers:")
+    print("-" * 50)
 
-# Display results
-for i, paper in enumerate(papers):
-    title = paper.get("title", "No title")
-    year = paper.get("year", "N/A")
-    citations = paper.get("citationCount", 0)
+    # Display results
+    for i, paper in enumerate(papers):
+        title = paper.get("title", "No title")
+        year = paper.get("year", "N/A")
+        citations = paper.get("citationCount", 0)
 
-    print(f"{i + 1}. {title} ({year})")
-    print(f"   Citations: {citations}")
+        print(f"{i + 1}. {title} ({year})")
+        print(f"   Citations: {citations}")
 
-    # Get DOI from externalIds
-    external_ids = paper.get("externalIds", {})
-    doi = external_ids.get("DOI")
-    if doi:
-        print(f"   DOI: {doi}")
+        # Get DOI from externalIds
+        external_ids = paper.get("externalIds", {})
+        doi = external_ids.get("DOI")
+        if doi:
+            print(f"   DOI: {doi}")
 
-    if paper.get("url"):
-        print(f"   URL: {paper.get('url')}")
+        if paper.get("url"):
+            print(f"   URL: {paper.get('url')}")
 
-    print()
+        print()
 
-# Save raw results to file
-output_file = "simple_search_results.json"
-with open(output_file, 'w', encoding='utf-8') as f:
-    json.dump(papers, f, indent=2, ensure_ascii=False)
+    # Save raw results to file
 
-print(f"Results saved to {output_file}")
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(papers, f, indent=2, ensure_ascii=False)
+
+    print(f"Results saved to {path}")
