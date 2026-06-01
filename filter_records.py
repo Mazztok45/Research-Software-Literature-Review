@@ -46,7 +46,7 @@ def filter_records(ids: list[int]) -> pd.DataFrame:
 def main() -> None:
     ids = [int(x) for x in sys.argv[1:]] if len(sys.argv) > 1 else DEFAULT_IDS
     filtered = filter_records(ids)
-    filtered.to_excel(OUTPUT_FILE, sheet_name="Filtered", index=False)
+    filtered.to_excel(OUTPUT_FILE, sheet_name=SHEET, index=False)
     logger.info("Saved %s", OUTPUT_FILE)
     upload_file_overwrite(OUTPUT_FILE, FOLDER_ID)
 

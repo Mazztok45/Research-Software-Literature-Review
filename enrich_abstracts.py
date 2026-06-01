@@ -450,35 +450,48 @@ def fetch_abstract(doi, url, title, snippet, session: requests.Session) -> tuple
 
 
 def main() -> None:
-    # 1. Download original file
-    logger.info("Downloading file %s (%s)...", FILE_ID, LOCAL_PATH.name)
-    if not download_file(FILE_ID, str(LOCAL_PATH)):
-        logger.error("Download failed — check INFOMANIAK_TOKEN.")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input",  default=None, help="Local input .xlsx (skips KDrive download)")
+    parser.add_argument("--output", default=None, help="Output .xlsx filename")
+    args = parser.parse_args()
 
-    df = pd.read_excel(LOCAL_PATH, sheet_name=SHEET)
+    local_path  = Path(args.input)  if args.input  else LOCAL_PATH
+    output_path = Path(args.output) if args.output else OUTPUT_PATH
+
+    if args.input:
+        # Use provided local file directly — no KDrive download
+        logger.info("Using local input: %s", local_path)
+    else:
+        # 1. Download original file from KDrive
+        logger.info("Downloading file %s (%s)...", FILE_ID, local_path.name)
+        if not download_file(FILE_ID, str(local_path)):
+            logger.error("Download failed — check INFOMANIAK_TOKEN.")
+            sys.exit(1)
+
+    df = pd.read_excel(local_path, sheet_name=SHEET)
     logger.info("Total rows: %d", len(df))
 
     # 2. Download latest enriched file from KDrive (so cloud-side progress is reused)
     from infomaniak import kdrive_list_all
     remote_files = kdrive_list_all(FOLDER_ID)
-    output_name = OUTPUT_PATH.name
+    output_name = output_path.name
     if output_name in remote_files:
         logger.info("Downloading latest enriched file from KDrive (%s)...", output_name)
-        download_file(remote_files[output_name], str(OUTPUT_PATH))
+        download_file(remote_files[output_name], str(output_path))
     else:
         logger.info("No enriched file found on KDrive — will start fresh or use local copy.")
 
     # 3. Reuse already-enriched rows if the output file exists
     df["abstract_full"]   = ""
     df["abstract_source"] = ""
-    if OUTPUT_PATH.exists():
-        prev = pd.read_excel(OUTPUT_PATH, sheet_name=SHEET)
+    if output_path.exists():
+        prev = pd.read_excel(output_path, sheet_name=SHEET)
         for col in ("abstract_full", "abstract_source"):
             if col in prev.columns:
                 df.loc[prev.index, col] = prev[col].fillna("").values
         already = (df["abstract_full"].str.strip() != "").sum()
-        logger.info("Reusing %d already-enriched rows from %s", already, OUTPUT_PATH.name)
+        logger.info("Reusing %d already-enriched rows from %s", already, output_path.name)
 
     # 4. Fetch abstracts only for rows still missing one
     session = requests.Session()
@@ -510,11 +523,11 @@ def main() -> None:
             logger.info("  %-28s %d", src, n)
 
     # 5. Save and upload
-    df.to_excel(OUTPUT_PATH, sheet_name=SHEET, index=False)
-    logger.info("Saved: %s", OUTPUT_PATH)
+    df.to_excel(output_path, sheet_name=SHEET, index=False)
+    logger.info("Saved: %s", output_path)
 
     logger.info("Uploading to KDrive folder %s...", FOLDER_ID)
-    if upload_file_overwrite(str(OUTPUT_PATH), FOLDER_ID):
+    if upload_file_overwrite(str(output_path), FOLDER_ID):
         logger.info("Upload complete.")
     else:
         logger.error("Upload failed — check INFOMANIAK_TOKEN.")
