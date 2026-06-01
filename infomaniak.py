@@ -60,13 +60,16 @@ def upload_file(file_path: str, directory_id: str) -> bool:
         return False
 
     payload = Path(file_path).read_bytes()
+    params = {
+        "total_size": len(payload),
+        "directory_id": directory_id,
+        "file_name": Path(file_path).name,
+    }
     try:
         r = requests.post(
             f"{_API_BASE}/3/drive/{_drive_id()}/upload",
             headers={"Authorization": f"Bearer {token}"},
-            params={"total_size": len(payload),
-                    "directory_id": directory_id,
-                    "file_name": Path(file_path).name},
+            params=params,
             data=payload, timeout=120,
         )
         ok = r.status_code == 200
@@ -133,6 +136,36 @@ def download_folder(folder_id: str, output_dir: str, skip_existing: bool = True)
     except Exception as e:
         logger.warning("Folder download failed (folder=%s): %s", folder_id, e)
         return 0
+
+
+def delete_file(file_id: str) -> bool:
+    """Delete a file from KDrive by its file ID. Returns True on success."""
+    token = get_token()
+    if not token:
+        logger.warning("INFOMANIAK_TOKEN not set — cannot delete file %s", file_id)
+        return False
+    try:
+        r = requests.delete(
+            f"{_API_BASE}/2/drive/{_drive_id()}/files/{file_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        ok = r.status_code in (200, 204)
+        logger.info("%s  delete file %s  (HTTP %d)", "OK  " if ok else "FAIL", file_id, r.status_code)
+        return ok
+    except Exception as e:
+        logger.warning("Delete error for file %s: %s", file_id, e)
+        return False
+
+
+def upload_file_overwrite(file_path: str, directory_id: str) -> bool:
+    """Upload a file, deleting any existing file with the same name first."""
+    name = Path(file_path).name
+    existing = kdrive_list_all(directory_id)
+    if name in existing:
+        logger.info("Deleting existing '%s' (id=%s) before upload", name, existing[name])
+        delete_file(existing[name])
+    return upload_file(file_path, directory_id)
 
 
 def kdrive_list_all(folder_id: str) -> Dict[str, str]:
