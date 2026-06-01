@@ -54,12 +54,14 @@ CR_BASE      = "https://api.crossref.org/works"
 ZENODO_BASE  = "https://zenodo.org/api/records"
 HAL_BASE     = "https://api.archives-ouvertes.fr/search"
 OA_BASE      = "https://api.openalex.org/works"
+FIGSHARE_BASE = "https://api.figshare.com/v2"
 
 _DOI_RE      = re.compile(r"10\.\d{4,9}/\S+")
 _ZENODO_RE   = re.compile(r"zenodo\.org/(?:record|records)/(\d+)", re.IGNORECASE)
 _HAL_RE      = re.compile(r"(hal-\d+|hal\.\d+)", re.IGNORECASE)
 _SS_CORPUS_RE = re.compile(r"semanticscholar\.org/CorpusID:(\d+)", re.IGNORECASE)
 _EPRINTS_RE  = re.compile(r"(https?://[^/]*eprints[^/]*/\d+/?)", re.IGNORECASE)
+_FIGSHARE_RE = re.compile(r"figshare\.com/(?:articles/[^/]+/[^/]+/|articles/)(\d+)", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +300,52 @@ def _eprints_by_url(url: str, session: requests.Session) -> str:
 
 
 # ---------------------------------------------------------------------------
+# FigShare
+# ---------------------------------------------------------------------------
+
+def _extract_figshare_id_from_doi(doi: str) -> str:
+    """Extract FigShare article ID from DOI like 10.6084/m9.figshare.<id>[.v<n>]."""
+    m = re.search(r"10\.6084/m9\.figshare\.(\d+)", doi, re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
+def _extract_figshare_id_from_url(url: str) -> str:
+    """Extract FigShare article ID from figshare.com URLs."""
+    if not url or str(url).strip().lower() in ("", "nan", "none"):
+        return ""
+    m = _FIGSHARE_RE.search(str(url))
+    return m.group(1) if m else ""
+
+
+def _figshare_by_article_id(article_id: str, session: requests.Session) -> str:
+    try:
+        r = session.get(f"{FIGSHARE_BASE}/articles/{article_id}", timeout=15)
+        if r.status_code == 200:
+            desc = r.json().get("description") or ""
+            return _strip_jats(desc)
+    except Exception as e:
+        logger.debug("FigShare article %s: %s", article_id, e)
+    return ""
+
+
+def _figshare_by_doi(doi: str, session: requests.Session) -> str:
+    article_id = _extract_figshare_id_from_doi(doi)
+    if article_id:
+        return _figshare_by_article_id(article_id, session)
+    # Generic DOI search via FigShare API
+    try:
+        r = session.post(f"{FIGSHARE_BASE}/articles/search",
+                         json={"doi": doi}, timeout=15)
+        if r.status_code == 200:
+            hits = r.json()
+            if hits:
+                return _figshare_by_article_id(str(hits[0]["id"]), session)
+    except Exception as e:
+        logger.debug("FigShare DOI search %s: %s", doi, e)
+    return ""
+
+
+# ---------------------------------------------------------------------------
 # Main fetch logic
 # ---------------------------------------------------------------------------
 
@@ -319,12 +367,17 @@ def fetch_abstract(doi, url, title, snippet, session: requests.Session) -> tuple
             ab = _zenodo_by_doi(doi_clean, session)
             if ab:
                 return ab, "doi→Zenodo"
-        # 4 — OpenAlex by DOI
+        # 4 — FigShare (10.6084/m9.figshare.*)
+        if "figshare" in doi_clean.lower() or "6084" in doi_clean:
+            ab = _figshare_by_doi(doi_clean, session)
+            if ab:
+                return ab, "doi→FigShare"
+        # 5 — OpenAlex by DOI
         ab = _openalex_by_doi(doi_clean, session)
         if ab:
             return ab, "doi→OpenAlex"
 
-    # 5-8 — DOI extracted from URL
+    # 6-9 — DOI extracted from URL
     url_doi = _extract_doi_from_url(url_s)
     if url_doi and url_doi != doi_clean:
         ab = _ss_by_doi(url_doi, session)
@@ -337,48 +390,59 @@ def fetch_abstract(doi, url, title, snippet, session: requests.Session) -> tuple
             ab = _zenodo_by_doi(url_doi, session)
             if ab:
                 return ab, "url-doi→Zenodo"
+        if "figshare" in url_doi.lower() or "6084" in url_doi:
+            ab = _figshare_by_doi(url_doi, session)
+            if ab:
+                return ab, "url-doi→FigShare"
         ab = _openalex_by_doi(url_doi, session)
         if ab:
             return ab, "url-doi→OpenAlex"
 
-    # 9 — Zenodo record ID from URL (zenodo.org/record/XXXXX)
+    # 10 — Zenodo record ID from URL (zenodo.org/record/XXXXX)
     zenodo_id = _extract_zenodo_id_from_url(url_s)
     if zenodo_id:
         ab = _zenodo_by_record_id(zenodo_id, session)
         if ab:
             return ab, "url→Zenodo"
 
-    # 10 — HAL identifier from URL
+    # 11 — HAL identifier from URL
     hal_id = _extract_hal_id_from_url(url_s)
     if hal_id:
         ab = _hal_by_id(hal_id, session)
         if ab:
             return ab, "url→HAL"
 
-    # 11 — Semantic Scholar CorpusID from URL
+    # 12 — Semantic Scholar CorpusID from URL
     m_corpus = _SS_CORPUS_RE.search(url_s)
     if m_corpus:
         ab = _ss_by_corpus_id(m_corpus.group(1), session)
         if ab:
             return ab, "url→SS-CorpusID"
 
-    # 12 — EPrints OAI-PMH
+    # 13 — EPrints OAI-PMH
     if "eprints" in url_s.lower():
         ab = _eprints_by_url(url_s, session)
         if ab:
             return ab, "url→EPrints"
 
-    # 13 — Title search on SS
+    # 14 — FigShare by article ID extracted from URL
+    figshare_id = _extract_figshare_id_from_url(url_s)
+    if figshare_id:
+        ab = _figshare_by_article_id(figshare_id, session)
+        if ab:
+            return ab, "url→FigShare"
+
+    # 15 — Title search on SS
     ab = _ss_by_title(title, session)
     if ab:
         return ab, "title→SS"
 
-    # 14 — Title search on OpenAlex
+    # 16 — Title search on OpenAlex
     ab = _openalex_by_title(title, session)
     if ab:
         return ab, "title→OpenAlex"
 
-    # 15 — snippet fallback
+    # 17 — snippet fallback
     if snippet and str(snippet).strip().lower() not in ("", "nan", "none"):
         return str(snippet).strip(), "snippet"
 
@@ -395,7 +459,17 @@ def main() -> None:
     df = pd.read_excel(LOCAL_PATH, sheet_name=SHEET)
     logger.info("Total rows: %d", len(df))
 
-    # 2. Reuse already-enriched rows if the output file exists
+    # 2. Download latest enriched file from KDrive (so cloud-side progress is reused)
+    from infomaniak import kdrive_list_all
+    remote_files = kdrive_list_all(FOLDER_ID)
+    output_name = OUTPUT_PATH.name
+    if output_name in remote_files:
+        logger.info("Downloading latest enriched file from KDrive (%s)...", output_name)
+        download_file(remote_files[output_name], str(OUTPUT_PATH))
+    else:
+        logger.info("No enriched file found on KDrive — will start fresh or use local copy.")
+
+    # 3. Reuse already-enriched rows if the output file exists
     df["abstract_full"]   = ""
     df["abstract_source"] = ""
     if OUTPUT_PATH.exists():
@@ -406,7 +480,7 @@ def main() -> None:
         already = (df["abstract_full"].str.strip() != "").sum()
         logger.info("Reusing %d already-enriched rows from %s", already, OUTPUT_PATH.name)
 
-    # 3. Fetch abstracts only for rows still missing one
+    # 4. Fetch abstracts only for rows still missing one
     session = requests.Session()
     session.headers.update({"User-Agent": "research-software-literature-review/1.0"})
 
@@ -425,9 +499,9 @@ def main() -> None:
     found = (df["abstract_full"].str.strip() != "").sum()
     logger.info("Abstracts found: %d/%d", found, len(df))
     all_sources = (
-        "doi→SS", "doi→CrossRef", "doi→Zenodo", "doi→OpenAlex",
-        "url-doi→SS", "url-doi→CrossRef", "url-doi→Zenodo", "url-doi→OpenAlex",
-        "url→Zenodo", "url→HAL", "url→SS-CorpusID", "url→EPrints",
+        "doi→SS", "doi→CrossRef", "doi→Zenodo", "doi→FigShare", "doi→OpenAlex",
+        "url-doi→SS", "url-doi→CrossRef", "url-doi→Zenodo", "url-doi→FigShare", "url-doi→OpenAlex",
+        "url→Zenodo", "url→HAL", "url→SS-CorpusID", "url→EPrints", "url→FigShare",
         "title→SS", "title→OpenAlex", "snippet", "none",
     )
     for src in all_sources:
@@ -435,7 +509,7 @@ def main() -> None:
         if n:
             logger.info("  %-28s %d", src, n)
 
-    # 4. Save and upload
+    # 5. Save and upload
     df.to_excel(OUTPUT_PATH, sheet_name=SHEET, index=False)
     logger.info("Saved: %s", OUTPUT_PATH)
 
