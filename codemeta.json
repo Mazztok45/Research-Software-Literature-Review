@@ -1,0 +1,67 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "identifier": "research-software-literature-review",
+  "name": "Research-Software-Literature-Review",
+  "description": "Scripts used to collect, deduplicate, and enrich the literature corpus for the systematic review 'Research Software Discovery: A Review of Scholarly Infrastructures and Associated Literature'. Runs query blocks against the OpenAlex and Scopus APIs, deduplicates results into screening spreadsheets, and enriches missing abstracts via Semantic Scholar, CrossRef, Zenodo, OpenAlex, HAL, FigShare, and OAI-PMH.",
+  "codeRepository": "https://github.com/Mazztok45/Research-Software-Literature-Review",
+  "issueTracker": "https://github.com/Mazztok45/Research-Software-Literature-Review/issues",
+  "license": "https://spdx.org/licenses/CC0-1.0",
+  "version": "1.0.0",
+  "dateCreated": "2025-03-20",
+  "dateModified": "2026-09-10",
+  "datePublished": "2026-09-10",
+  "programmingLanguage": {
+    "@type": "ComputerLanguage",
+    "name": "Python",
+    "version": "3",
+    "url": "https://www.python.org"
+  },
+  "runtimePlatform": "Python 3",
+  "operatingSystem": [
+    "Linux",
+    "macOS",
+    "Windows"
+  ],
+  "softwareRequirements": [
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "requests",
+      "name": "requests"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "pandas",
+      "name": "pandas"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "identifier": "openpyxl",
+      "name": "openpyxl"
+    }
+  ],
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Maxence",
+      "familyName": "Azzouz",
+      "email": "maxence.azzouz@gmail.com",
+      "identifier": "https://github.com/Mazztok45"
+    }
+  ],
+  "keywords": [
+    "research software",
+    "software discovery",
+    "software recommendation",
+    "scholarly infrastructure",
+    "FAIR software",
+    "software citation",
+    "systematic literature review",
+    "OpenAlex",
+    "Scopus"
+  ],
+  "relatedLink": [
+    "https://openalex.org",
+    "https://www.scopus.com"
+  ]
+}
