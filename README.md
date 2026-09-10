@@ -64,6 +64,11 @@ python scopus.py
 INFOMANIAK_TOKEN=<token> python enrich_abstracts.py
 ```
 
+`openalex.py` and `scopus.py` are standalone and do not depend on
+`infomaniak.py` or kDrive — they only need `requests`, `pandas`, `openpyxl`,
+and the relevant API key(s) above. Only `enrich_abstracts.py` requires
+`INFOMANIAK_TOKEN`.
+
 ⚠️ **Abstract coverage note**: ACM/IEEE records rarely expose abstracts via
 Crossref/OpenAlex, so a share of those records need manual abstract retrieval
 before title+abstract screening — `enrich_abstracts.py` narrows this gap
